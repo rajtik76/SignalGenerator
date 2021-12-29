@@ -42,7 +42,7 @@ Debounce buttonRight(BUTTON_RIGHT);
 Debounce buttonUp(BUTTON_UP);
 Debounce buttonDown(BUTTON_DOWN);
 
-char frequency[9] = "05000000"; // frequency
+char frequency[9] = "00001000"; // frequency
 char editFrequency[9];          // frequency in edit mode
 bool editMode = false;          // edit mode flag
 uint8_t editPosition = 1;       // edit number position 1 - 8
@@ -147,6 +147,28 @@ void increaseEditPositionAndDisplay(void) {
   displayMegaHertz(editPosition, editFrequency);
 }
 
+// increase | decrease value
+void positionChangeValue(bool substraction) {
+  char value = editFrequency[(editPosition - 1)];
+  
+  if (substraction) {
+    if (value == '9') {
+      value = '0';
+    } else {
+      value++;
+    }
+  } else {
+    if (value == '0') {
+      value = '9';
+    } else {
+      value--;
+    }
+  }
+
+  editFrequency[editPosition - 1] = value;
+  displayMegaHertz(editPosition, editFrequency);
+}
+
 void setup() {
   Serial.begin(9600);
 
@@ -169,13 +191,21 @@ void setup() {
 void loop() {
   // OK button pressed
   if (buttonOk.pressed()) {
-    editPosition = 1;
-    strcpy(editFrequency, frequency);
     editMode = !editMode;
 
     if (editMode) {
+      editPosition = 1;
+      strcpy(editFrequency, frequency);
       displayMegaHertz(editPosition, editFrequency);
     } else {
+      if (strcmp(frequency, editFrequency) != 0) {
+        Serial.print("Frequency was changed from:");
+        Serial.print(atol(frequency), DEC);
+        Serial.print("Hz to:");
+        Serial.print(atol(editFrequency), DEC);
+        Serial.print("Hz");
+      }
+      strcpy(frequency, editFrequency);
       displayFrequency();
     }
   }
@@ -189,10 +219,12 @@ void loop() {
 
     // UP button pressed
     if (buttonUp.pressed()) {
+      positionChangeValue(true);
     }
 
     // DOWN button pressed  
     if (buttonDown.pressed()) {
+      positionChangeValue(false);
     }
   }
 }
