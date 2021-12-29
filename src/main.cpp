@@ -35,11 +35,15 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 #define BUTTON_OK 2
 #define BUTTON_RIGHT 3
-Debounce okButton(BUTTON_OK);
-Debounce rightButton(BUTTON_RIGHT);
+#define BUTTON_UP 4
+#define BUTTON_DOWN 5
+Debounce buttonOk(BUTTON_OK);
+Debounce buttonRight(BUTTON_RIGHT);
+Debounce buttonUp(BUTTON_UP);
+Debounce buttonDown(BUTTON_DOWN);
 
 char frequency[9] = "05000000"; // frequency
-
+char editFrequency[9];          // frequency in edit mode
 bool editMode = false;          // edit mode flag
 uint8_t editPosition = 1;       // edit number position 1 - 8
 
@@ -80,7 +84,7 @@ void displayKiloHertz(void) {
   display.display();
 }
 
-void displayMegaHertz(uint8_t markPosition) {
+void displayMegaHertz(uint8_t markPosition, char *frequency) {
   initDisplay();
   
   for (uint8_t i = 0; i < 8; i++)
@@ -116,7 +120,7 @@ void displayFrequency(void) {
     displayKiloHertz();
   } else
   {
-    displayMegaHertz(0);
+    displayMegaHertz(0, frequency);
   }
 }
 
@@ -140,7 +144,7 @@ void changeEditPosition(bool inverse) {
 // increase edit position and display
 void increaseEditPositionAndDisplay(void) {
   changeEditPosition(false);
-  displayMegaHertz(editPosition);
+  displayMegaHertz(editPosition, editFrequency);
 }
 
 void setup() {
@@ -164,18 +168,31 @@ void setup() {
 
 void loop() {
   // OK button pressed
-  if (okButton.pressed()) {
+  if (buttonOk.pressed()) {
     editPosition = 1;
+    strcpy(editFrequency, frequency);
     editMode = !editMode;
 
     if (editMode) {
-      displayMegaHertz(editPosition);
+      displayMegaHertz(editPosition, editFrequency);
     } else {
       displayFrequency();
     }
   }
 
-  if (editMode && rightButton.pressed()) {
-    increaseEditPositionAndDisplay();
+  // edit mode
+  if (editMode) {
+    // RIGHT button pressed
+    if (buttonRight.pressed()) {
+      increaseEditPositionAndDisplay();
+    }
+
+    // UP button pressed
+    if (buttonUp.pressed()) {
+    }
+
+    // DOWN button pressed  
+    if (buttonDown.pressed()) {
+    }
   }
 }
