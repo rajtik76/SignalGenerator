@@ -3,3 +3,7 @@ I want to create a sinus + square wave signal generator with AD9850 using Arduin
 
 ## Schematic
 ![](img/SignalGenerator.png)
+
+## Features
+- store frequency to EEPROM
+- when you press UP + DOWN button in edit mode together then EEPROM is cleared and Arduino is restarted
