@@ -48,8 +48,8 @@ Debounce buttonDown(BUTTON_DOWN);
 
 // AD9850 definition
 #define W_CLK_PIN 13
-#define FQ_UD_PIN 6
-#define RESET_PIN 7
+#define FQ_UD_PIN 8
+#define RESET_PIN 9
 
 // AD9850 trim frequency
 double trimFreq = 124999500;
@@ -187,7 +187,7 @@ void setup() {
   // AD9850 setup
   DDS.begin(W_CLK_PIN, FQ_UD_PIN, RESET_PIN);
   DDS.calibrate(trimFreq);
-  DDS.setfreq(1000, 0);
+  DDS.setfreq(0, 0);
 
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
