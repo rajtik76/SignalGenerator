@@ -20,6 +20,7 @@
 
 #include <Adafruit_SSD1306.h>
 #include <Debounce.h>
+#include <AD9850SPI.h>
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
@@ -33,16 +34,27 @@
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// Buttons definitions
 #define BUTTON_OK 2
 #define BUTTON_RIGHT 3
 #define BUTTON_UP 4
 #define BUTTON_DOWN 5
+
+// Debounce buttons instatiate
 Debounce buttonOk(BUTTON_OK);
 Debounce buttonRight(BUTTON_RIGHT);
 Debounce buttonUp(BUTTON_UP);
 Debounce buttonDown(BUTTON_DOWN);
 
-char frequency[9] = "00001000"; // frequency
+// AD9850 definition
+#define W_CLK_PIN 13
+#define FQ_UD_PIN 6
+#define RESET_PIN 7
+
+// AD9850 trim frequency
+double trimFreq = 124999500;
+
+char frequency[9] = "00000000"; // frequency
 char editFrequency[9];          // frequency in edit mode
 bool editMode = false;          // edit mode flag
 uint8_t editPosition = 1;       // edit number position 1 - 8
@@ -172,6 +184,11 @@ void positionChangeValue(bool substraction) {
 void setup() {
   Serial.begin(9600);
 
+  // AD9850 setup
+  DDS.begin(W_CLK_PIN, FQ_UD_PIN, RESET_PIN);
+  DDS.calibrate(trimFreq);
+  DDS.setfreq(1000, 0);
+
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -204,6 +221,9 @@ void loop() {
         Serial.print("Hz to:");
         Serial.print(atol(editFrequency), DEC);
         Serial.print("Hz");
+
+        DDS.setfreq(1000, 0);
+        DDS.up();
       }
       strcpy(frequency, editFrequency);
       displayFrequency();
