@@ -21,6 +21,7 @@
 #include <Adafruit_SSD1306.h>
 #include <Debounce.h>
 #include <AD9850SPI.h>
+#include <EEPROM.h>
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
@@ -52,7 +53,7 @@ Debounce buttonDown(BUTTON_DOWN);
 #define RESET_PIN 7
 
 // AD9850 trim frequency
-double trimFreq = 124999999;
+double trimFreq = 124999000;
 
 char frequency[9] = "00000000"; // frequency
 char editFrequency[9];          // frequency in edit mode
@@ -181,13 +182,28 @@ void positionChangeValue(bool substraction) {
   displayMegaHertz(editPosition, editFrequency);
 }
 
+// reset Arduino
+void(* resetFunc) (void) = 0;
+
 void setup() {
   Serial.begin(9600);
 
   // AD9850 setup
   DDS.begin(W_CLK_PIN, FQ_UD_PIN, RESET_PIN);
   DDS.calibrate(trimFreq);
-  DDS.setfreq(1000, 0);
+  
+  int eepromId;
+  char eepromFrequency[9];
+  
+  EEPROM.get(0, eepromId);
+  if (eepromId == 1976) {
+    EEPROM.get(10, eepromFrequency);
+    strcpy(frequency, eepromFrequency);
+    DDS.setfreq(atol(frequency), 0);
+  } else {
+    DDS.setfreq(0, 0);
+    DDS.down();
+  }
 
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -222,7 +238,10 @@ void loop() {
         Serial.print(atol(editFrequency), DEC);
         Serial.print("Hz");
 
+        DDS.up();
         DDS.setfreq(atol(editFrequency), 0);
+        EEPROM.put(0, 1976);
+        EEPROM.put(10, editFrequency);
       }
       strcpy(frequency, editFrequency);
       displayFrequency();
@@ -233,12 +252,26 @@ void loop() {
   if (editMode) {
     // RIGHT button pressed
     if (buttonRight.pressed()) {
-      increaseEditPositionAndDisplay();
-    }
+      increaseEditPositionAndDisplay();    }
 
     // UP button pressed
     if (buttonUp.pressed()) {
       positionChangeValue(true);
+      if (buttonDown.pressed()) {
+        Serial.println("Frequency + EEPROM RESET");
+        
+        initDisplay();
+        display.setTextColor(SSD1306_WHITE);
+        display.print("  RESETED");
+        display.display();
+
+        strcpy(editFrequency, {"00000000"});
+        strcpy(frequency, {"00000000"});
+        for (uint16_t i = 0 ; i < EEPROM.length() ; i++) {
+          EEPROM.write(i, 0);
+        }
+        resetFunc(); // reset Arduino
+      }
     }
 
     // DOWN button pressed  
