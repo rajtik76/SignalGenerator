@@ -36,10 +36,10 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Buttons definitions
-#define BUTTON_OK 2
-#define BUTTON_RIGHT 3
-#define BUTTON_UP 4
-#define BUTTON_DOWN 5
+#define BUTTON_OK 13
+#define BUTTON_RIGHT 12
+#define BUTTON_UP 14
+#define BUTTON_DOWN 27
 
 // Debounce buttons instatiate
 Debounce buttonOk(BUTTON_OK);
@@ -48,9 +48,9 @@ Debounce buttonUp(BUTTON_UP);
 Debounce buttonDown(BUTTON_DOWN);
 
 // AD9850 definition
-#define W_CLK_PIN 13
-#define FQ_UD_PIN 6
-#define RESET_PIN 7
+#define W_CLK_PIN 18
+#define FQ_UD_PIN 17
+#define RESET_PIN 16
 
 // AD9850 trim frequency
 double trimFreq = 124999000;
@@ -236,7 +236,7 @@ void loop() {
         Serial.print(atol(frequency), DEC);
         Serial.print("Hz to:");
         Serial.print(atol(editFrequency), DEC);
-        Serial.print("Hz");
+        Serial.println("Hz");
 
         DDS.up();
         DDS.setfreq(atol(editFrequency), 0);
