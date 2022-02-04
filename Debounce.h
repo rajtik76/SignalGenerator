@@ -5,7 +5,7 @@
 
 class Debounce {
     public:
-      Debounce(int pin);
+      Debounce(int pin, int defaultState = LOW);
       bool pressed(void);
     private:
       int _pin;

@@ -1,9 +1,10 @@
 #include "Arduino.h"
 #include "Debounce.h"
 
-Debounce::Debounce(int pin) {
-    pinMode(pin, INPUT);
-    _pin = pin;
+Debounce::Debounce(int pin, int defaultState = LOW) {
+  pinMode(pin, INPUT);
+  _state = defaultState;
+  _pin = pin;
 }
 
 bool Debounce::pressed(void) {

@@ -1,33 +1,36 @@
 /**************************************************************************
- This is an example for our Monochrome OLEDs based on SSD1306 drivers
+  This is an example for our Monochrome OLEDs based on SSD1306 drivers
 
- Pick one up today in the adafruit shop!
- ------> http://www.adafruit.com/category/63_98
+  Pick one up today in the adafruit shop!
+  ------> http://www.adafruit.com/category/63_98
 
- This example is for a 128x64 pixel display using I2C to communicate
- 3 pins are required to interface (two I2C and one reset).
+  This example is for a 128x64 pixel display using I2C to communicate
+  3 pins are required to interface (two I2C and one reset).
 
- Adafruit invests time and resources providing this open
- source code, please support Adafruit and open-source
- hardware by purchasing products from Adafruit!
+  Adafruit invests time and resources providing this open
+  source code, please support Adafruit and open-source
+  hardware by purchasing products from Adafruit!
 
- Written by Limor Fried/Ladyada for Adafruit Industries,
- with contributions from the open source community.
- BSD license, check license.txt for more information
- All text above, and the splash screen below must be
- included in any redistribution.
+  Written by Limor Fried/Ladyada for Adafruit Industries,
+  with contributions from the open source community.
+  BSD license, check license.txt for more information
+  All text above, and the splash screen below must be
+  included in any redistribution.
  **************************************************************************/
 
+#include <Wire.h>
 #include <Adafruit_SSD1306.h>
-#include <Debounce.h>
 #include <AD9850SPI.h>
+#include <SPI.h>
 #include <EEPROM.h>
+#include <Encoder.h>
+#include "Debounce.h"
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-// The pins for I2C are defined by the Wire-library. 
+// The pins for I2C are defined by the Wire-library.
 // On an arduino UNO:       A4(SDA), A5(SCL)
 // On an arduino MEGA 2560: 20(SDA), 21(SCL)
 // On an arduino LEONARDO:   2(SDA),  3(SCL), ...
@@ -35,36 +38,48 @@
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// Buttons definitions
-#define BUTTON_OK 13
-#define BUTTON_RIGHT 12
-#define BUTTON_UP 14
-#define BUTTON_DOWN 27
+// Pins
+#define BUTTON_SET 2
+#define ROTARY_CLK 3
+#define ROTARY_DT 4
+#define ROTARY_BUTTON 5
 
-// Debounce buttons instatiate
-Debounce buttonOk(BUTTON_OK);
-Debounce buttonRight(BUTTON_RIGHT);
-Debounce buttonUp(BUTTON_UP);
-Debounce buttonDown(BUTTON_DOWN);
+// AD9850
+#define W_CLK_PIN 13
+#define FQ_UD_PIN 12
+#define RESET_PIN 10
 
-// AD9850 definition
-#define W_CLK_PIN 18
-#define FQ_UD_PIN 17
-#define RESET_PIN 16
+// Rotary encoder
+Encoder myEnc(ROTARY_CLK, ROTARY_DT);
+long rotaryPrevPosition = 0;
+int8_t rotaryDirection = 0;   // 0 = no change, 1 = rotate CC, -1 = rotate CCW
+
+Debounce rotaryButtonDebounce(ROTARY_BUTTON, HIGH);
 
 // AD9850 trim frequency
 double trimFreq = 124999000;
 
-char frequency[9] = "00000000"; // frequency
+char frequency[9] = "00001500"; // frequency
 char editFrequency[9];          // frequency in edit mode
-bool editMode = false;          // edit mode flag
 uint8_t editPosition = 1;       // edit number position 1 - 8
+
+// timers
+unsigned long buttonSetTimer = millis();
+unsigned long rotaryButtonTimer = millis();
+
+// button flags
+bool editMode = false;          // edit mode flag
+bool buttonSetPressed = false;  // set button pressed flag
+bool rotaryButtonPressed = false;
+
+// rotary
+int previousRotaryClkState;
 
 // init display
 void initDisplay(void) {
   display.clearDisplay();
   display.setTextSize(2);
-  display.setCursor(0,0);
+  display.setCursor(0, 0);
 }
 
 void displayHertz(void) {
@@ -99,7 +114,7 @@ void displayKiloHertz(void) {
 
 void displayMegaHertz(uint8_t markPosition, char *frequency) {
   initDisplay();
-  
+
   for (uint8_t i = 0; i < 8; i++)
   {
     if (i == 2) { // add dot between MHz and Khz
@@ -115,17 +130,17 @@ void displayMegaHertz(uint8_t markPosition, char *frequency) {
 
     display.print(frequency[i]);
   }
-  
+
   display.setTextColor(SSD1306_WHITE);
   display.println();
   display.print("    MHz");
-  
+
   display.display();
 }
 
-// display frequency
 void displayFrequency(void) {
   long longFrequency = atol(frequency);
+
   if (longFrequency < 1000) {
     displayHertz();
   } else if (longFrequency < 1000000)
@@ -137,7 +152,6 @@ void displayFrequency(void) {
   }
 }
 
-// change edit position
 void changeEditPosition(bool inverse) {
   if (inverse == false) {
     if (editPosition == 8) {
@@ -154,16 +168,14 @@ void changeEditPosition(bool inverse) {
   }
 }
 
-// increase edit position and display
 void increaseEditPositionAndDisplay(void) {
   changeEditPosition(false);
   displayMegaHertz(editPosition, editFrequency);
 }
 
-// increase | decrease value
 void positionChangeValue(bool substraction) {
   char value = editFrequency[(editPosition - 1)];
-  
+
   if (substraction) {
     if (value == '9') {
       value = '0';
@@ -182,19 +194,44 @@ void positionChangeValue(bool substraction) {
   displayMegaHertz(editPosition, editFrequency);
 }
 
+void onButtonSetPress(void) {
+  if (millis() - buttonSetTimer > 250) {
+    buttonSetTimer = millis();
+    editMode = !editMode;
+    buttonSetPressed = true;
+    Serial.println("Set button pressed");
+  }
+}
+
+void onRotaryButtonPress(void) {
+  Serial.println("Rotary button press interrupt");
+  if (millis() - rotaryButtonTimer > 250) {
+    rotaryButtonTimer = millis();
+    rotaryButtonPressed = true;
+    Serial.println("Rotary button pressed");
+  }
+}
+
 // reset Arduino
 void(* resetFunc) (void) = 0;
 
 void setup() {
   Serial.begin(9600);
 
+  // pins mode
+  pinMode(BUTTON_SET, INPUT_PULLUP);
+  pinMode(ROTARY_BUTTON, INPUT_PULLUP);
+
+  // interrupts
+  attachInterrupt(digitalPinToInterrupt(BUTTON_SET), onButtonSetPress, RISING);
+
   // AD9850 setup
   DDS.begin(W_CLK_PIN, FQ_UD_PIN, RESET_PIN);
   DDS.calibrate(trimFreq);
-  
+
   int eepromId;
   char eepromFrequency[9];
-  
+
   EEPROM.get(0, eepromId);
   if (eepromId == 1976) {
     EEPROM.get(10, eepromFrequency);
@@ -206,11 +243,11 @@ void setup() {
   }
 
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
+    for (;;); // Don't proceed, loop forever
   }
-  
+
   // Clear the buffer
   display.clearDisplay();
 
@@ -219,47 +256,64 @@ void setup() {
   display.display();
 
   displayFrequency();
+  Serial.println("Setup finished");
 }
 
 void loop() {
-  // OK button pressed
-  if (buttonOk.pressed()) {
-    editMode = !editMode;
+  if (editMode && buttonSetPressed) { // enter to edit mode
+    editPosition = 1;
+    strcpy(editFrequency, frequency);
+    displayMegaHertz(editPosition, editFrequency);
 
-    if (editMode) {
-      editPosition = 1;
-      strcpy(editFrequency, frequency);
-      displayMegaHertz(editPosition, editFrequency);
-    } else {
-      if (strcmp(frequency, editFrequency) != 0) {
-        Serial.print("Frequency was changed from:");
-        Serial.print(atol(frequency), DEC);
-        Serial.print("Hz to:");
-        Serial.print(atol(editFrequency), DEC);
-        Serial.println("Hz");
-
-        DDS.up();
-        DDS.setfreq(atol(editFrequency), 0);
-        EEPROM.put(0, 1976);
-        EEPROM.put(10, editFrequency);
-      }
-      strcpy(frequency, editFrequency);
-      displayFrequency();
-    }
+    buttonSetPressed = false;
   }
 
-  // edit mode
-  if (editMode) {
-    // RIGHT button pressed
-    if (buttonRight.pressed()) {
-      increaseEditPositionAndDisplay();    }
+  if (!editMode && buttonSetPressed) { // exit edit mode
+    if (strcmp(frequency, editFrequency) != 0) { // set frequency in AD9850
 
-    // UP button pressed
-    if (buttonUp.pressed()) {
+      Serial.print("Frequency was changed from:");
+      Serial.print(atol(frequency), DEC);
+      Serial.print("Hz to:");
+      Serial.print(atol(editFrequency), DEC);
+      Serial.println("Hz");
+
+      DDS.up();
+      DDS.setfreq(atol(editFrequency), 0);
+      EEPROM.put(0, 1976);
+      EEPROM.put(10, editFrequency);
+      
+    }
+    
+    strcpy(frequency, editFrequency); // copy edit frequency to frequency variable
+    displayFrequency();
+    
+    buttonSetPressed = false;
+  }
+
+  if (editMode) { // edit mode
+
+    long rotaryNewPosition = round(myEnc.read() / 4);
+    if (rotaryNewPosition != rotaryPrevPosition) { // rotary moved
+      if (rotaryNewPosition > rotaryPrevPosition) {
+        rotaryDirection = 1; // CC = increase
+      } else {
+        rotaryDirection = -1; // CCW = decrease
+      }
+      rotaryPrevPosition = rotaryNewPosition;
+    } else {
+      rotaryDirection = 0;
+    }
+
+    if (rotaryButtonDebounce.pressed()) { // rotary button pressed (next digit)
+      increaseEditPositionAndDisplay();
+    }
+
+    if (rotaryDirection == 1) { // UP button pressed
+      rotaryDirection = 0;
       positionChangeValue(true);
-      if (buttonDown.pressed()) {
+      if (false) {
         Serial.println("Frequency + EEPROM RESET");
-        
+
         initDisplay();
         display.setTextColor(SSD1306_WHITE);
         display.print("  RESETED");
@@ -274,8 +328,8 @@ void loop() {
       }
     }
 
-    // DOWN button pressed  
-    if (buttonDown.pressed()) {
+    if (rotaryDirection == -1) { // DOWN button pressed
+      rotaryDirection = 0;
       positionChangeValue(false);
     }
   }
