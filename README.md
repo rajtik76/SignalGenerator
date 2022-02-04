@@ -1,5 +1,5 @@
 # Signal Generator
-I build sinus + square wave signal generator with AD9850 using Arduino UNO, SSD1306 OLED display and AD9850 generator
+I build sinus wave signal generator with AD9850 using Arduino UNO, SSD1306 OLED display and AD9850 generator and rotary encoder
 
 ## Schematic
 ![](img/SignalGenerator.png)
