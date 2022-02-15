@@ -59,7 +59,7 @@ Debounce rotaryButtonDebounce(ROTARY_BUTTON, HIGH);
 // AD9850 trim frequency
 double trimFreq = 124999000;
 
-char frequency[9] = "00001500"; // frequency
+char frequency[9] = "00001000"; // frequency
 char editFrequency[9];          // frequency in edit mode
 uint8_t editPosition = 1;       // edit number position 1 - 8
 
@@ -198,17 +198,14 @@ void onButtonSetPress(void) {
   if (millis() - buttonSetTimer > 250) {
     buttonSetTimer = millis();
     editMode = !editMode;
-    buttonSetPressed = true;
-    Serial.println("Set button pressed");
+    buttonSetPressed = true;    
   }
 }
 
 void onRotaryButtonPress(void) {
-  Serial.println("Rotary button press interrupt");
   if (millis() - rotaryButtonTimer > 250) {
     rotaryButtonTimer = millis();
     rotaryButtonPressed = true;
-    Serial.println("Rotary button pressed");
   }
 }
 
@@ -219,7 +216,7 @@ void setup() {
   Serial.begin(9600);
 
   // pins mode
-  pinMode(BUTTON_SET, INPUT_PULLUP);
+  pinMode(BUTTON_SET, INPUT);
   pinMode(ROTARY_BUTTON, INPUT_PULLUP);
 
   // interrupts
@@ -232,15 +229,9 @@ void setup() {
   int eepromId;
   char eepromFrequency[9];
 
-  EEPROM.get(0, eepromId);
-  if (eepromId == 1976) {
-    EEPROM.get(10, eepromFrequency);
-    strcpy(frequency, eepromFrequency);
-    DDS.setfreq(atol(frequency), 0);
-  } else {
-    DDS.setfreq(0, 0);
-    DDS.down();
-  }
+  
+  DDS.up();
+  DDS.setfreq(atol(frequency), 0);
 
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -256,7 +247,6 @@ void setup() {
   display.display();
 
   displayFrequency();
-  Serial.println("Setup finished");
 }
 
 void loop() {
@@ -277,14 +267,12 @@ void loop() {
       Serial.print(atol(editFrequency), DEC);
       Serial.println("Hz");
 
+      strcpy(frequency, editFrequency); // copy edit frequency to frequency variable
+
       DDS.up();
-      DDS.setfreq(atol(editFrequency), 0);
-      EEPROM.put(0, 1976);
-      EEPROM.put(10, editFrequency);
-      
+      DDS.setfreq(atol(frequency), 0);
     }
     
-    strcpy(frequency, editFrequency); // copy edit frequency to frequency variable
     displayFrequency();
     
     buttonSetPressed = false;
