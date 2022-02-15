@@ -226,13 +226,6 @@ void setup() {
   DDS.begin(W_CLK_PIN, FQ_UD_PIN, RESET_PIN);
   DDS.calibrate(trimFreq);
 
-  int eepromId;
-  char eepromFrequency[9];
-
-  
-  DDS.up();
-  DDS.setfreq(atol(frequency), 0);
-
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -247,6 +240,10 @@ void setup() {
   display.display();
 
   displayFrequency();
+
+  delay(500);
+  DDS.up();
+  DDS.setfreq(atol(frequency), 0);
 }
 
 void loop() {
